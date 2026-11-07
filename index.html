@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -127,6 +128,7 @@ textarea::placeholder{color:#aaa49c}
  <h3>Управление расписанием</h3>
  <p>При наступлении полуночи незавершённые задачи текущего и последующих дней сдвигаются на следующий день. Выполненные задачи остаются на своих датах. Если браузер был закрыт, перенос произойдёт при следующем открытии страницы.</p>
  <div class="actions">
+  <button class="primary" id="simulate">Имитировать полночь</button>
   <button id="reset">Сбросить прогресс</button>
  </div>
  <div class="history" id="history">Автоматическая проверка даты включена.</div>
@@ -637,7 +639,7 @@ function renderTasks(){
     </label>
    `).join("")}
   </article>
- `).join(""):<div class="card empty">На этот день задач нет.</div>`;
+ `).join(""):`<div class="card empty">На этот день задач нет.</div>`;
 
  $("tasks").querySelectorAll("[data-status]").forEach(button=>{
   button.addEventListener("click",()=>{
@@ -719,14 +721,33 @@ function shiftSchedule(targetDate){
  return moved;
 }
 
-/* АВТОМАТИЧЕСКАЯ ПРОВЕРКА ДАТЫ */
+function simulateMidnight(){
+ saveNote();
+
+ if(!confirm("Имитировать наступление полуночи и перенести незавершённые задачи?"))return;
+
+ const date=state.days[state.selected].date;
+ const moved=shiftSchedule(date);
+
+ if(moved){
+  state.moves++;
+  $("history").textContent=
+   "Перенос №"+state.moves+": перемещено задач — "+moved+".";
+ }else{
+  $("history").textContent="Все задачи этого дня выполнены. Перенос не требуется.";
+ }
+
+ save();
+ render();
+}
+
+/* АВТОМАТИЧЕСКАЯ ПРОВЕРКА ПОЛУНОЧИ */
 
 function checkMidnight(){
  const today=todayISO();
- const yesterday=addDays(today,-1);
 
  if(!state.lastRolloverDate){
-  state.lastRolloverDate=yesterday;
+  state.lastRolloverDate=today;
   save();
   return;
  }
@@ -734,8 +755,8 @@ function checkMidnight(){
  let cursor=state.lastRolloverDate;
  let totalMoved=0;
  let changed=false;
+ const yesterday=addDays(today,-1);
 
- /* Обрабатываем каждый завершившийся день, который ещё не был обработан */
  while(cursor<yesterday){
   const next=addDays(cursor,1);
 
@@ -747,25 +768,21 @@ function checkMidnight(){
   cursor=next;
  }
 
- if(changed){
-  if(totalMoved){
-   state.moves++;
-   $("history").textContent=
-    "Автоматический перенос: перемещено задач — "+totalMoved+".";
-  }
+ state.lastRolloverDate=today;
 
+ if(changed&&totalMoved){
+  state.moves++;
+  $("history").textContent=
+   "Автоматический перенос: перемещено задач — "+totalMoved+".";
   render();
- }
-
- /* Сохраняем именно последний обработанный день, а не текущую дату */
- if(cursor>state.lastRolloverDate){
-  state.lastRolloverDate=cursor;
  }
 
  save();
 }
 
 /* СБРОС */
+
+$("simulate").addEventListener("click",simulateMidnight);
 
 $("reset").addEventListener("click",()=>{
  if(!confirm("Сбросить весь прогресс, заметки и переносы?"))return;
@@ -788,17 +805,11 @@ function render(){
 render();
 checkMidnight();
 
-/* Проверка каждые 10 секунд */
 setInterval(checkMidnight,10000);
 
-/* Проверка при возвращении на вкладку */
 document.addEventListener("visibilitychange",()=>{
  if(!document.hidden)checkMidnight();
 });
-
-/* Проверка при возвращении фокуса окну или повторном открытии страницы */
-window.addEventListener("focus",checkMidnight);
-window.addEventListener("pageshow",checkMidnight);
 </script>
 </body>
 </html>
